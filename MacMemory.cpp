@@ -22,7 +22,7 @@ pid_t GetPidByName(const char* ProcessName) {
         return -1;
     }
 
-    struct kinfo_proc* Kprocs = reinterpret_cast<struct kinfo_proc*>(Buffer.data());
+    struct kinfo_proc* Kprocs = reinterpret_cast<struct kinfo_proc*>(Buffer);
     int ProcessCount = Size / sizeof(struct kinfo_proc);
 
     for (int i = 0; i < ProcessCount ; ++i) {
@@ -43,7 +43,8 @@ mach_vm_address_t GetBaseAddress(task_t Task) {
     mach_msg_type_number_t InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
     mach_port_t ObjectName;
 
-    kern_return_t Kr = mach_vm_region(Task, &Address, &Size, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&Info, &InfoCount, &ObjectName);
+    kern_return_t Kr = mach_vm_region(Task, &Address, &Size, 
+        VM_REGION_BASIC_INFO_64, (vm_region_info_t)&Info, &InfoCount, &ObjectName);
     if (Kr != KERN_SUCCESS) {
         std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
         return -1;
@@ -55,7 +56,8 @@ mach_vm_address_t GetBaseAddress(task_t Task) {
 void ReadProcessMemory(task_t Task, mach_vm_address_t Address, size_t Size) {
     mach_vm_size_t DataCount = Size;
     unsigned char* Buffer = new unsigned char[Size];
-    kern_return_t Kr = mach_vm_read_overwrite(Task, Address, Size, Buffer, &DataCount);
+    kern_return_t Kr = mach_vm_read_overwrite(Task, Address, Size, 
+        reinterpret_cast<vm_address_t>(Buffer), &DataCount);
 
     if (Kr != KERN_SUCCESS) {
         std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
