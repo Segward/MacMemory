@@ -4,7 +4,7 @@
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 #include <vector>
-#include <cstring> // For memcmp
+#include <cstring>
 
 struct MemoryRegion {
     mach_vm_address_t Address;
@@ -41,33 +41,6 @@ pid_t GetPidByName(const char* ProcessName) {
     return Pid;
 }
 
-bool WriteProcessMemory(task_t Task, mach_vm_address_t Address, unsigned char* Buffer, size_t Size) {
-    mach_vm_size_t DataCount = Size;
-    kern_return_t Kr = mach_vm_write(Task, Address, 
-        reinterpret_cast<vm_offset_t>(Buffer), Size);
-
-    if (Kr != KERN_SUCCESS) {
-        std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-std::vector<unsigned char> ReadProcessMemory(task_t Task, mach_vm_address_t Address, size_t Size) {
-    mach_vm_size_t DataCount = Size;
-    std::vector<unsigned char> Buffer(Size);
-    kern_return_t Kr = mach_vm_read_overwrite(Task, Address, Size, 
-        reinterpret_cast<vm_address_t>(Buffer.data()), &DataCount);
-
-    if (Kr != KERN_SUCCESS) {
-        std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
-        return std::vector<unsigned char>();
-    }
-
-    return Buffer;
-}
-
 std::vector<MemoryRegion> GetReadWriteRegions(task_t Task) {
     std::vector<MemoryRegion> Regions;
     mach_vm_address_t Address = 0;
@@ -93,15 +66,46 @@ std::vector<MemoryRegion> GetReadWriteRegions(task_t Task) {
     return Regions;
 }
 
-std::vector<mach_vm_address_t> FindValueAddresses(task_t Task, const void* Value, size_t ValueSize,
-        size_t BufferSize = 4096, std::vector<MemoryRegion> Regions = std::vector<MemoryRegion>()) {
+bool SetMemoryProtection(task_t Task, mach_vm_address_t Address, mach_vm_size_t Size, vm_prot_t NewProtection) {
+    kern_return_t Kr = mach_vm_protect(Task, Address, Size, false, NewProtection);
+    if (Kr != KERN_SUCCESS) {
+        std::cerr << "Error: " << mach_error_string(Kr) << " while setting protection at address " << std::hex << Address << std::dec << std::endl;
+        return false;
+    }
+    return true;
+}
+
+std::vector<unsigned char> ReadProcessMemory(task_t Task, mach_vm_address_t Address, size_t Size) {
+    mach_vm_size_t DataCount = Size;
+    std::vector<unsigned char> Buffer(Size);
+    kern_return_t Kr = mach_vm_read_overwrite(Task, Address, Size, 
+        reinterpret_cast<vm_address_t>(Buffer.data()), &DataCount);
+
+    if (Kr != KERN_SUCCESS) {
+        std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
+        return std::vector<unsigned char>();
+    }
+
+    return Buffer;
+}
+
+std::vector<mach_vm_address_t> SearchValueInReadWriteRegions(task_t Task, const void* Value, size_t ValueSize) {
     std::vector<mach_vm_address_t> FoundAddresses;
+    std::vector<MemoryRegion> Regions = GetReadWriteRegions(Task);
+    size_t BufferSize = 4096;
+
     for (size_t J = 0; J < Regions.size(); ++J) {
         mach_vm_address_t Address = Regions[J].Address;
         mach_vm_size_t RemainingSize = Regions[J].Size;
 
         while (RemainingSize > 0) {
             mach_vm_size_t ReadSize = (RemainingSize > BufferSize) ? BufferSize : RemainingSize;
+
+            if (!SetMemoryProtection(Task, Address, ReadSize, VM_PROT_READ | VM_PROT_WRITE)) {
+                std::cerr << "Error: Could not set memory protection at address " << std::hex << Address << std::dec << std::endl;
+                break;
+            }
+
             std::vector<unsigned char> Buffer = ReadProcessMemory(Task, Address, ReadSize);
 
             if (Buffer.empty()) {
@@ -109,7 +113,7 @@ std::vector<mach_vm_address_t> FindValueAddresses(task_t Task, const void* Value
                 break;
             }
 
-            for (size_t I = 0; I <= ReadSize - ValueSize; ++I) {
+            for (size_t I = 0; I <= ReadSize - ValueSize; I += ValueSize) {
                 if (memcmp(Buffer.data() + I, Value, ValueSize) == 0) {
                     FoundAddresses.push_back(Address + I);
                 }
@@ -158,19 +162,6 @@ void* CompareValueAtAddress(task_t Task, mach_vm_address_t Address, size_t Size,
     return FoundAddress;
 }
 
-void PrintBuffer(const std::vector<unsigned char>& Buffer) {
-    for (size_t I = 0; I < Buffer.size(); ++I) {
-        std::cout << std::hex << (int)Buffer[I] << " ";
-    }
-    std::cout << std::endl;
-}
-
-void PrintPointerVector(const std::vector<mach_vm_address_t>& Vector) {
-    for (size_t I = 0; I < Vector.size(); ++I) {
-        std::cout << std::hex << Vector[I] << std::dec << std::endl;
-    }
-}
-
 int main() {
     const char* ProcessName = "Calculator";
     pid_t Pid = GetPidByName(ProcessName);
@@ -194,12 +185,11 @@ int main() {
         return -1;
     }
 
-
     size_t BufferSize = 4096;
     int ValueToSearch = 500;
 
-    std::vector<mach_vm_address_t> FoundAddresses = FindValueAddresses(Task, 
-        &ValueToSearch, sizeof(ValueToSearch), BufferSize, Regions);
+    std::vector<mach_vm_address_t> FoundAddresses = SearchValueInReadWriteRegions(Task, 
+        &ValueToSearch, sizeof(ValueToSearch));
 
     if (FoundAddresses.empty()) {
         std::cout << "Value not found" << std::endl;
