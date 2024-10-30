@@ -53,7 +53,20 @@ mach_vm_address_t GetBaseAddress(task_t Task) {
     return Address;
 }
 
-void ReadProcessMemory(task_t Task, mach_vm_address_t Address, size_t Size) {
+bool WriteProcessMemory(task_t Task, mach_vm_address_t Address, unsigned char* Buffer, size_t Size) {
+    mach_vm_size_t DataCount = Size;
+    kern_return_t Kr = mach_vm_write(Task, Address, 
+        reinterpret_cast<vm_offset_t>(Buffer), Size);
+
+    if (Kr != KERN_SUCCESS) {
+        std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+unsigned char* ReadProcessMemory(task_t Task, mach_vm_address_t Address, size_t Size) {
     mach_vm_size_t DataCount = Size;
     unsigned char* Buffer = new unsigned char[Size];
     kern_return_t Kr = mach_vm_read_overwrite(Task, Address, Size, 
@@ -62,15 +75,17 @@ void ReadProcessMemory(task_t Task, mach_vm_address_t Address, size_t Size) {
     if (Kr != KERN_SUCCESS) {
         std::cerr << "Error: " << mach_error_string(Kr) << std::endl;
         delete[] Buffer;
-        return;
+        return nullptr;
     }
 
-    for (size_t i = 0; i < DataCount; ++i) {
+    return Buffer;
+}
+
+void PrintBuffer(unsigned char* Buffer, size_t Size) {
+    for (size_t i = 0; i < Size; ++i) {
         std::cout << std::hex << (int)Buffer[i] << " ";
     }
-    std::cout << std::dec << std::endl;
-
-    delete[] Buffer;
+    std::cout << std::endl;
 }
 
 int main() {
@@ -102,7 +117,13 @@ int main() {
     }
 
     size_t Size = 4096; 
-    ReadProcessMemory(Task, BaseAddress, Size);
+    unsigned char* Buffer = ReadProcessMemory(Task, BaseAddress, Size);
+    if (Buffer == nullptr) {
+        std::cerr << "Error: Could not read process memory" << std::endl;
+        return -1;
+    }
+
+    PrintBuffer(Buffer, Size);
 
     return 0;
 }
