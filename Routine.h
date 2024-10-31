@@ -63,7 +63,9 @@ void GetPidByName(const char* ProcessName, pid_t* Pid) {
     int ProcessCount = Size / sizeof(struct kinfo_proc);
 
     for (int I = 0; I < ProcessCount; ++I) {
-        *Pid = strcmp(Kprocs[I].kp_proc.p_comm, ProcessName) == 0 ? Kprocs[I].kp_proc.p_pid : -1;
+        *Pid = strcmp(Kprocs[I].kp_proc.p_comm, ProcessName) == 0 
+            ? Kprocs[I].kp_proc.p_pid : -1;
+            
         if (*Pid != -1)
             break;
     }
@@ -111,7 +113,10 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
             break;
         }
 
-        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(Pi->Regions, (Pi->RegionCount + 1) * sizeof(MemoryRegion));
+        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(
+            Pi->Regions,
+            (Pi->RegionCount + 1) * sizeof(MemoryRegion));
+
         if (NewRegion == NULL) {
             printf("Error: realloc failed\n");
             free(Pi->Regions);
@@ -146,8 +151,13 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
     Pi->Unprotected = NULL;
 
     for (size_t I = 0; I < Pi->RegionCount; ++I) {
-        if ((Pi->Regions[I].Rbi.protection & VM_PROT_READ) && (Pi->Regions[I].Rbi.protection & VM_PROT_WRITE)) {
-            MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(Pi->Unprotected, (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion));
+        if ((Pi->Regions[I].Rbi.protection & VM_PROT_READ) 
+            && (Pi->Regions[I].Rbi.protection & VM_PROT_WRITE)) {
+
+            MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(
+                Pi->Unprotected,
+                 (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion));
+
             if (NewRegion == NULL) {
                 printf("Error: realloc failed\n");
                 free(Pi->Unprotected);
