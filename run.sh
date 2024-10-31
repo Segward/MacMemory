@@ -1,2 +1,2 @@
-g++ -std=c++11 -o macmemory macmemory.cpp -framework CoreFoundation
+gcc -std=c11 -o MacMemory MacMemory.c -framework CoreFoundation
 sudo ./MacMemory
