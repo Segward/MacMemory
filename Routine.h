@@ -7,6 +7,13 @@
 #include <sys/sysctl.h>
 #include <libproc.h>
 #include <string.h>
+#include <mach-o/loader.h>
+#include <mach-o/nlist.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <mach-o/dyld_images.h>
 
 void* safe_malloc(size_t size) {
     void* ptr = malloc(size);
@@ -41,6 +48,15 @@ typedef struct {
     size_t UnprotectedCount;
     MemoryRegion BaseAddress;
 } ProcessInformation;
+
+void FreeProcessInformation(ProcessInformation* Pi) {
+    free(Pi->Regions);
+    Pi->Regions = NULL;
+    Pi->RegionCount = 0;
+    free(Pi->Unprotected);
+    Pi->Unprotected = NULL;
+    Pi->UnprotectedCount = 0;
+}
 
 void GetPidByName(const char* ProcessName, pid_t* Pid) {
     int Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
@@ -171,5 +187,77 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
         Pi->Unprotected = NewRegion;
         Pi->Unprotected[Pi->UnprotectedCount] = Pi->Regions[I];
         Pi->UnprotectedCount++;
+    }
+}
+
+void ReadProcessMemory(task_t Task, mach_vm_address_t Address, void* Buffer, size_t Size) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (mach_vm_read_overwrite(Task, Address, Size, (mach_vm_address_t)Buffer, (mach_vm_size_t*) &Size) != KERN_SUCCESS) {
+        printf("Error: Could not read memory\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void WriteProcessMemory(task_t Task, mach_vm_address_t Address, void* Buffer, size_t Size) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (mach_vm_write(Task, Address, (vm_offset_t)Buffer, Size) != KERN_SUCCESS) {
+        printf("Error: Could not write memory\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void GetProcessThreads(task_t Task, thread_act_array_t* Threads, mach_msg_type_number_t* ThreadCount) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (task_threads(Task, Threads, ThreadCount) != KERN_SUCCESS) {
+        printf("Error: Could not get threads\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void SuspendProcessThread(thread_act_t Thread) {
+    if (Thread == MACH_PORT_NULL) {
+        printf("Error: Invalid thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (thread_suspend(Thread) != KERN_SUCCESS) {
+        printf("Error: Could not suspend thread\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void ResumeProcessThread(thread_act_t Thread) {
+    if (Thread == MACH_PORT_NULL) {
+        printf("Error: Invalid thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (thread_resume(Thread) != KERN_SUCCESS) {
+        printf("Error: Could not resume thread\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void FreeThreadArray(thread_act_array_t* Threads, mach_msg_type_number_t ThreadCount) {
+    if (*Threads == NULL) {
+        printf("Error: Invalid threads\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (mach_vm_deallocate(mach_task_self(), (mach_vm_address_t)*Threads, ThreadCount * sizeof(thread_act_t)) != KERN_SUCCESS) {
+        printf("Error: Could not deallocate threads\n");
+        exit(EXIT_FAILURE);
     }
 }
