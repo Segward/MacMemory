@@ -368,6 +368,26 @@ void GetThreadState64(thread_act_t Thread, arm_thread_state64_t *State) {
     }
 }
 
+void GetThreadState32(thread_act_t Thread, arm_thread_state_t *State) {
+    if (Thread == MACH_PORT_NULL) {
+        printf("Error: Invalid thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    mach_msg_type_number_t StateCount = ARM_THREAD_STATE32_COUNT;
+
+    kern_return_t kr = thread_get_state(
+        Thread, 
+        ARM_THREAD_STATE, 
+        (thread_state_t)State, 
+        &StateCount);
+
+    if (kr != KERN_SUCCESS) {
+        printf("Error: Could not get thread state. Error code: %d\n", kr);
+        exit(EXIT_FAILURE);
+    }
+}
+
 void SetThreadState(
         thread_act_t Thread, 
         thread_state_flavor_t Flavor, 
