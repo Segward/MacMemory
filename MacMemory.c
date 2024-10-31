@@ -11,7 +11,11 @@ int main() {
     ProcessInformation Pi;
     GetProcessInformation(Task, &Pi);
 
-    printf("%zu\n", Pi.RegionCount);
+    printf("Regions: %zu\n", Pi.RegionCount);
+
+    printf("Unprotected: %zu\n", Pi.UnprotectedCount);
+
+    printf("Base Address: %p\n", (void*)Pi.BaseAddress.Address);
 
     return 0;
 }

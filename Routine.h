@@ -37,11 +37,9 @@ typedef struct {
 typedef struct {
     MemoryRegion* Regions;
     size_t RegionCount;
-    MemoryRegion* UnprotectedRegions;
+    MemoryRegion* Unprotected;
     size_t UnprotectedCount;
     MemoryRegion BaseAddress;
-    unsigned char* Buffer;
-    size_t BufferSize;
 } ProcessInformation;
 
 void GetPidByName(const char* ProcessName, pid_t* Pid) {
@@ -134,5 +132,33 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
         Pi->RegionCount++;
         BaseRegion.Address += BaseRegion.Size;
     }
-}
 
+    if (Pi->RegionCount == 0) {
+        printf("Error: Could not get memory regions\n");
+        free(Pi->Regions);
+        Pi->Regions = NULL;
+        Pi->RegionCount = 0;
+        exit(EXIT_FAILURE);
+    }
+
+    Pi->BaseAddress = Pi->Regions[0];
+    Pi->UnprotectedCount = 0;
+    Pi->Unprotected = NULL;
+
+    for (size_t I = 0; I < Pi->RegionCount; ++I) {
+        if ((Pi->Regions[I].Rbi.protection & VM_PROT_READ) && (Pi->Regions[I].Rbi.protection & VM_PROT_WRITE)) {
+            MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(Pi->Unprotected, (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion));
+            if (NewRegion == NULL) {
+                printf("Error: realloc failed\n");
+                free(Pi->Unprotected);
+                Pi->Unprotected = NULL;
+                Pi->UnprotectedCount = 0;
+                return;
+            }
+
+            Pi->Unprotected = NewRegion;
+            Pi->Unprotected[Pi->UnprotectedCount] = Pi->Regions[I];
+            Pi->UnprotectedCount++;
+        }
+    }
+}
