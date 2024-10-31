@@ -190,19 +190,35 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
     }
 }
 
-void ReadProcessMemory(task_t Task, mach_vm_address_t Address, void* Buffer, size_t Size) {
+void ReadProcessMemory(
+        task_t Task, 
+        mach_vm_address_t Address, 
+        void* Buffer, 
+        size_t Size) {
+            
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
     }
 
-    if (mach_vm_read_overwrite(Task, Address, Size, (mach_vm_address_t)Buffer, (mach_vm_size_t*) &Size) != KERN_SUCCESS) {
+    if (mach_vm_read_overwrite(
+            Task, 
+            Address, 
+            Size, 
+            (mach_vm_address_t)Buffer, 
+            (mach_vm_size_t*) &Size) != KERN_SUCCESS) {
+
         printf("Error: Could not read memory\n");
         exit(EXIT_FAILURE);
     }
 }
 
-void WriteProcessMemory(task_t Task, mach_vm_address_t Address, void* Buffer, size_t Size) {
+void WriteProcessMemory(
+        task_t Task, 
+        mach_vm_address_t Address, 
+        void* Buffer, 
+        size_t Size) {
+
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
@@ -214,7 +230,11 @@ void WriteProcessMemory(task_t Task, mach_vm_address_t Address, void* Buffer, si
     }
 }
 
-void GetProcessThreads(task_t Task, thread_act_array_t* Threads, mach_msg_type_number_t* ThreadCount) {
+void GetProcessThreads(
+        task_t Task, 
+        thread_act_array_t* Threads, 
+        mach_msg_type_number_t* ThreadCount) {
+
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
@@ -256,7 +276,11 @@ void FreeThreadArray(thread_act_array_t* Threads, mach_msg_type_number_t ThreadC
         exit(EXIT_FAILURE);
     }
 
-    if (mach_vm_deallocate(mach_task_self(), (mach_vm_address_t)*Threads, ThreadCount * sizeof(thread_act_t)) != KERN_SUCCESS) {
+    if (mach_vm_deallocate(
+            mach_task_self(), 
+            (mach_vm_address_t)*Threads, 
+            ThreadCount * sizeof(thread_act_t)) != KERN_SUCCESS) {
+                
         printf("Error: Could not deallocate threads\n");
         exit(EXIT_FAILURE);
     }
