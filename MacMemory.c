@@ -1,10 +1,8 @@
 #include "Routine.h"
-#include <unistd.h>
 
 int main() {
-
     pid_t Pid;
-    GetPidByName("Calculator", &Pid);
+    GetPidByName("RobloxPlayer", &Pid);
 
     task_t Task;
     GetTaskForPid(Pid, &Task);
@@ -12,28 +10,38 @@ int main() {
     ProcessInformation Pi;
     GetProcessInformation(Task, &Pi);
 
-    printf("Regions: %zu\n", Pi.RegionCount);
-    printf("Unprotected: %zu\n", Pi.UnprotectedCount);
-    printf("Base Address: %p\n", (void*)Pi.BaseAddress.Address);
+    cpu_type_t CpuType;
+    GetProcessArchitecture(Task, &CpuType);
+
+    if (CpuType == CPU_TYPE_ARM) {
+        printf("ARM architecture\n");
+    } else if (CpuType == CPU_TYPE_ARM64) {
+        printf("ARM64 architecture\n");
+    }
 
     thread_act_array_t Threads;
     mach_msg_type_number_t ThreadCount;
     GetProcessThreads(Task, &Threads, &ThreadCount);
 
-    printf("Threads: %d\n", ThreadCount);
+    thread_act_t Thread = Threads[0];
 
-    thread_act_t MainThread = Threads[0];
-    SuspendProcessThread(MainThread);
+    SuspendProcessThread(Thread);
+
+    arm_thread_state64_t State;
+    GetThreadState64(Thread, &State);
+
+    printf("X0: 0x%llx\n", State.__x[0]);
+    State.__x[0] = 0x0;
+
+    SetThreadState(Thread, ARM_THREAD_STATE64, (thread_act_t* )&State, ARM_THREAD_STATE64_COUNT);
+
+    GetThreadState64(Thread, &State);
+
+    printf("X0: 0x%llx\n", State.__x[0]);
     
-    printf("Thread %u Suspended\n", MainThread);
-
-    usleep(1000000);
-    ResumeProcessThread(MainThread);
-
-    printf("Thread %u Resumed\n", MainThread);
-
+    ResumeProcessThread(Thread);
+    
     FreeProcessInformation(&Pi);
-    FreeThreadArray(&Threads, ThreadCount);
 
     return 0;
 }

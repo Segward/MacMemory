@@ -34,11 +34,11 @@ void* safe_realloc(void* ptr, size_t size) {
 }
 
 typedef struct {
-    mach_vm_address_t Address;
-    mach_vm_size_t Size;
-    vm_region_basic_info_data_64_t Rbi;
-    mach_msg_type_number_t InfoCount;
-    mach_port_t ObjectName;
+    mach_vm_address_t Address;                                          // start address of memory region
+    mach_vm_size_t Size;                                                // size of memory region
+    vm_region_basic_info_data_64_t Rbi;                                 // basic information about memory region
+    mach_msg_type_number_t InfoCount;                                   // number of information
+    mach_port_t ObjectName;                                             // object name
 } MemoryRegion;
 
 typedef struct {
@@ -59,23 +59,23 @@ void FreeProcessInformation(ProcessInformation* Pi) {
 }
 
 void GetPidByName(const char* ProcessName, pid_t* Pid) {
-    int Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
-    size_t Miblen = 4;
+    int Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };             // sysctl parameters for getting process information
+    size_t Miblen = 4;                                                  // number of parameters
     size_t Size;
 
-    if (sysctl(Mib, Miblen, NULL, &Size, NULL, 0) == -1) {
+    if (sysctl(Mib, Miblen, NULL, &Size, NULL, 0) == -1) {              // get size of buffer required to store process information
         printf("Error: Could not get size of buffer\n");
         exit(EXIT_FAILURE);
     }
     
-    unsigned char* Buffer = (unsigned char*)malloc(Size);
-    if (sysctl(Mib, Miblen, Buffer, &Size, NULL, 0) == -1) {
+    unsigned char* Buffer = (unsigned char*)malloc(Size);               // allocate buffer to store process information
+    if (sysctl(Mib, Miblen, Buffer, &Size, NULL, 0) == -1) {            // get process information
         printf("Error: Could not allocate buffer\n");
         free(Buffer);
         exit(EXIT_FAILURE);
     }
 
-    struct kinfo_proc* Kprocs = (struct kinfo_proc*)Buffer;
+    struct kinfo_proc* Kprocs = (struct kinfo_proc*)Buffer;             // cast buffer to process information
     int ProcessCount = Size / sizeof(struct kinfo_proc);
 
     for (int I = 0; I < ProcessCount; ++I) {
@@ -116,7 +116,7 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
     BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
 
     while (true) {
-        kern_return_t Kr = mach_vm_region(
+        kern_return_t Kr = mach_vm_region( 
             Task, 
             &BaseRegion.Address, 
             &BaseRegion.Size, 
@@ -224,8 +224,50 @@ void WriteProcessMemory(
         exit(EXIT_FAILURE);
     }
 
-    if (mach_vm_write(Task, Address, (vm_offset_t)Buffer, Size) != KERN_SUCCESS) {
+    if (mach_vm_write(
+            Task, 
+            Address, 
+            (vm_offset_t)Buffer, 
+            Size) != KERN_SUCCESS) {
+
         printf("Error: Could not write memory\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void AllocateRemoteMemory(
+        task_t Task, 
+        mach_vm_address_t* Address, 
+        mach_vm_size_t Size) {
+
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (mach_vm_allocate(
+        Task, 
+        Address, 
+        Size, 
+        VM_FLAGS_ANYWHERE) != KERN_SUCCESS) {
+
+        printf("Error: Could not allocate memory\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void DelallocateRemoteMemory(
+        task_t Task, 
+        mach_vm_address_t Address, 
+        mach_vm_size_t Size) {
+
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (mach_vm_deallocate(Task, Address, Size) != KERN_SUCCESS) {
+        printf("Error: Could not deallocate memory\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -270,18 +312,80 @@ void ResumeProcessThread(thread_act_t Thread) {
     }
 }
 
-void FreeThreadArray(thread_act_array_t* Threads, mach_msg_type_number_t ThreadCount) {
-    if (*Threads == NULL) {
-        printf("Error: Invalid threads\n");
+void GetProcessArchitecture(task_t Task, cpu_type_t* CpuType) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
     }
 
-    if (mach_vm_deallocate(
-            mach_task_self(), 
-            (mach_vm_address_t)*Threads, 
-            ThreadCount * sizeof(thread_act_t)) != KERN_SUCCESS) {
-                
-        printf("Error: Could not deallocate threads\n");
+    task_thread_times_info_data_t TaskInfo;
+    mach_msg_type_number_t TaskInfoCount = TASK_THREAD_TIMES_INFO_COUNT;
+
+    if (task_info(
+            Task, 
+            TASK_THREAD_TIMES_INFO, 
+            (task_info_t)&TaskInfo, 
+            &TaskInfoCount) != KERN_SUCCESS) {
+
+        printf("Error: Could not get task info\n");
+        exit(EXIT_FAILURE);
+    }
+
+    host_t host = mach_host_self();
+    struct host_basic_info HostInfo;
+    mach_msg_type_number_t HostInfoCount = HOST_BASIC_INFO_COUNT;
+
+    if (host_info(
+            host, 
+            HOST_BASIC_INFO, 
+            (host_info_t)&HostInfo, 
+            &HostInfoCount) != KERN_SUCCESS) {
+
+        printf("Error: Could not get host info\n");
+        exit(EXIT_FAILURE);
+    }
+
+    *CpuType = HostInfo.cpu_type;
+}
+
+void GetThreadState64(thread_act_t Thread, arm_thread_state64_t *State) {
+    if (Thread == MACH_PORT_NULL) {
+        printf("Error: Invalid thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    mach_msg_type_number_t StateCount = ARM_THREAD_STATE64_COUNT;
+
+    kern_return_t kr = thread_get_state(
+        Thread, 
+        ARM_THREAD_STATE64, 
+        (thread_state_t)State, 
+        &StateCount);
+
+    if (kr != KERN_SUCCESS) {
+        printf("Error: Could not get thread state. Error code: %d\n", kr);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void SetThreadState(
+        thread_act_t Thread, 
+        thread_state_flavor_t Flavor, 
+        thread_state_t State, 
+        mach_msg_type_number_t StateCount) {
+
+    if (Thread == MACH_PORT_NULL) {
+        printf("Error: Invalid thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (thread_set_state(
+            Thread, 
+            Flavor, 
+            State, 
+            StateCount) != KERN_SUCCESS) {
+
+        printf("Error: Could not set thread state\n");
         exit(EXIT_FAILURE);
     }
 }
