@@ -8,10 +8,10 @@ int main() {
     task_t Task;
     GetTaskForPid(Pid, &Task);
 
-    MemoryProcessInformation Mpi;
-    GetMemoryProcessInformation(Task, &Mpi);
+    ProcessInformation Pi;
+    GetProcessInformation(Task, &Pi);
 
-    printf("%zu\n", Mpi.RegionCount);
+    printf("%zu\n", Pi.RegionCount);
 
     return 0;
 }

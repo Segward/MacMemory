@@ -42,7 +42,7 @@ typedef struct {
     MemoryRegion BaseAddress;
     unsigned char* Buffer;
     size_t BufferSize;
-} MemoryProcessInformation;
+} ProcessInformation;
 
 void GetPidByName(const char* ProcessName, pid_t* Pid) {
     int Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
@@ -83,18 +83,21 @@ void GetTaskForPid(pid_t Pid, task_t* Task) {
         printf("Error: Could not get task for pid\n");
         *Task = MACH_PORT_NULL;
     }
-    
 }
 
-void GetMemoryProcessInformation(task_t Task, MemoryProcessInformation* Mpi) {
+void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
     }
 
-    Mpi->RegionCount = 0;
-    Mpi->Regions = NULL;
+    Pi->RegionCount = 0;
+    Pi->Regions = NULL;
+    
     MemoryRegion BaseRegion;
+    BaseRegion.Address = 0;
+    BaseRegion.Size = 0;
+    BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
 
     while (true) {
         kern_return_t Kr = mach_vm_region(
@@ -110,24 +113,25 @@ void GetMemoryProcessInformation(task_t Task, MemoryProcessInformation* Mpi) {
             break;
         }
 
-        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(Mpi->Regions, (Mpi->RegionCount + 1) * sizeof(MemoryRegion));
+        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(Pi->Regions, (Pi->RegionCount + 1) * sizeof(MemoryRegion));
         if (NewRegion == NULL) {
             printf("Error: realloc failed\n");
-            free(Mpi->Regions);
-            Mpi->Regions = NULL;
-            Mpi->RegionCount = 0;
+            free(Pi->Regions);
+            Pi->Regions = NULL;
+            Pi->RegionCount = 0;
             return;
         }
 
-        Mpi->Regions = NewRegion;
-        Mpi->Regions[Mpi->RegionCount] = (MemoryRegion){ 
+        Pi->Regions = NewRegion;
+        Pi->Regions[Pi->RegionCount] = (MemoryRegion) { 
             BaseRegion.Address, 
             BaseRegion.Size, 
             BaseRegion.Rbi, 
             BaseRegion.InfoCount, 
-            BaseRegion.ObjectName };
+            BaseRegion.ObjectName 
+        };
 
-        Mpi->RegionCount++;
+        Pi->RegionCount++;
         BaseRegion.Address += BaseRegion.Size;
     }
 }
