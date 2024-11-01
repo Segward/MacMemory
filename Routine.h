@@ -480,7 +480,11 @@ void SetThreadState(
     }
 }
 
-void GetMemoryProtection64(task_t Task, mach_vm_address_t Address, vm_prot_t* Protection) {
+void GetMemoryProtection64(t
+        ask_t Task, 
+        mach_vm_address_t Address, 
+        vm_prot_t* Protection) {
+
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
@@ -508,7 +512,11 @@ void GetMemoryProtection64(task_t Task, mach_vm_address_t Address, vm_prot_t* Pr
     *Protection = BaseRegion.Rbi.protection;
 }
 
-void GetMemoryProtection32(task_t Task, mach_vm_address_t Address, vm_prot_t* Protection) {
+void GetMemoryProtection32(
+        task_t Task, 
+        mach_vm_address_t Address, 
+        vm_prot_t* Protection) {
+
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
@@ -536,7 +544,12 @@ void GetMemoryProtection32(task_t Task, mach_vm_address_t Address, vm_prot_t* Pr
     *Protection = BaseRegion.Rbi.protection;
 }
 
-void SetMemoryProtection(task_t Task, mach_vm_address_t Address, size_t Size, vm_prot_t Protection) {
+void SetMemoryProtection(
+        task_t Task, 
+        mach_vm_address_t Address, 
+        size_t Size, 
+        vm_prot_t Protection) {
+            
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
