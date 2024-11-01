@@ -39,17 +39,33 @@ typedef struct {
     vm_region_basic_info_data_64_t Rbi;                                 // basic information about memory region
     mach_msg_type_number_t InfoCount;                                   // number of information
     mach_port_t ObjectName;                                             // object name
-} MemoryRegion;
+} MemoryRegion64;
 
 typedef struct {
-    MemoryRegion* Regions;
+    MemoryRegion64* Regions;
     size_t RegionCount;
-    MemoryRegion* Unprotected;
+    MemoryRegion64* Unprotected;
     size_t UnprotectedCount;
-    MemoryRegion BaseAddress;
-} ProcessInformation;
+    MemoryRegion64 BaseAddress;
+} ProcessInformation64;
 
-void FreeProcessInformation(ProcessInformation* Pi) {
+typedef struct {
+    mach_vm_address_t Address;                                          // start address of memory region
+    mach_vm_size_t Size;                                                // size of memory region
+    vm_region_basic_info_data_t Rbi;                                    // basic information about memory region
+    mach_msg_type_number_t InfoCount;                                   // number of information
+    mach_port_t ObjectName;                                             // object name
+} MemoryRegion32;
+
+typedef struct {
+    MemoryRegion32* Regions;
+    size_t RegionCount;
+    MemoryRegion32* Unprotected;
+    size_t UnprotectedCount;
+    MemoryRegion32 BaseAddress;
+} ProcessInformatio32;
+
+void FreeProcessInformation64(ProcessInformation64* Pi) {
     free(Pi->Regions);
     Pi->Regions = NULL;
     Pi->RegionCount = 0;
@@ -101,7 +117,7 @@ void GetTaskForPid(pid_t Pid, task_t* Task) {
     }
 }
 
-void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
+void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
@@ -110,7 +126,7 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
     Pi->RegionCount = 0;
     Pi->Regions = NULL;
     
-    MemoryRegion BaseRegion;
+    MemoryRegion64 BaseRegion;
     BaseRegion.Address = 0;
     BaseRegion.Size = 0;
     BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
@@ -129,9 +145,9 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
             break;
         }
 
-        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(
+        MemoryRegion64* NewRegion = (MemoryRegion64*)safe_realloc(
             Pi->Regions,
-            (Pi->RegionCount + 1) * sizeof(MemoryRegion));
+            (Pi->RegionCount + 1) * sizeof(MemoryRegion64));
 
         if (NewRegion == NULL) {
             printf("Error: realloc failed\n");
@@ -142,7 +158,7 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
         }
 
         Pi->Regions = NewRegion;
-        Pi->Regions[Pi->RegionCount] = (MemoryRegion) { 
+        Pi->Regions[Pi->RegionCount] = (MemoryRegion64) { 
             BaseRegion.Address, 
             BaseRegion.Size, 
             BaseRegion.Rbi, 
@@ -172,9 +188,9 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
             continue;
         }
 
-        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(
+        MemoryRegion64* NewRegion = (MemoryRegion64*)safe_realloc(
             Pi->Unprotected,
-            (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion));
+            (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion64));
 
         if (NewRegion == NULL) {
             printf("Error: realloc failed\n");
@@ -188,6 +204,96 @@ void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
         Pi->Unprotected[Pi->UnprotectedCount] = Pi->Regions[I];
         Pi->UnprotectedCount++;
     }
+}
+
+void GetProcessInformation32(task_t Task, ProcessInformatio32* Pi) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Pi->RegionCount = 0;
+    Pi->Regions = NULL;
+    
+    MemoryRegion32 BaseRegion;
+    BaseRegion.Address = 0;
+    BaseRegion.Size = 0;
+    BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT;
+
+    while (true) {
+        kern_return_t Kr = mach_vm_region( 
+            Task, 
+            &BaseRegion.Address, 
+            &BaseRegion.Size, 
+            VM_REGION_BASIC_INFO, 
+            (vm_region_info_t)&BaseRegion.Rbi, 
+            &BaseRegion.InfoCount, 
+            &BaseRegion.ObjectName);
+
+        if (Kr != KERN_SUCCESS) {
+            break;
+        }
+
+        MemoryRegion32* NewRegion = (MemoryRegion32*)safe_realloc(
+            Pi->Regions,
+            (Pi->RegionCount + 1) * sizeof(MemoryRegion32));
+
+        if (NewRegion == NULL) {
+            printf("Error: realloc failed\n");
+            free(Pi->Regions);
+            Pi->Regions = NULL;
+            Pi->RegionCount = 0;
+            return;
+        }
+
+        Pi->Regions = NewRegion;
+        Pi->Regions[Pi->RegionCount] = (MemoryRegion32) { 
+            BaseRegion.Address, 
+            BaseRegion.Size, 
+            BaseRegion.Rbi, 
+            BaseRegion.InfoCount, 
+            BaseRegion.ObjectName 
+        };
+
+        Pi->RegionCount++;
+        BaseRegion.Address += BaseRegion.Size;
+    }
+
+    if (Pi->RegionCount == 0) {
+        printf("Error: Could not get memory regions\n");
+        free(Pi->Regions);
+        Pi->Regions = NULL;
+        Pi->RegionCount = 0;
+        exit(EXIT_FAILURE);
+    }
+
+    Pi->BaseAddress = Pi->Regions[0];
+    Pi->UnprotectedCount = 0;
+    Pi->Unprotected = NULL;
+
+    for (size_t I = 0; I < Pi->RegionCount; ++I) {
+        if (!(Pi->Regions[I].Rbi.protection & VM_PROT_READ) 
+            && !(Pi->Regions[I].Rbi.protection & VM_PROT_WRITE)) {
+            continue;
+        }
+
+        MemoryRegion32* NewRegion = (MemoryRegion32*)safe_realloc(
+            Pi->Unprotected,
+            (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion32));
+
+        if (NewRegion == NULL) {
+            printf("Error: realloc failed\n");
+            free(Pi->Unprotected);
+            Pi->Unprotected = NULL;
+            Pi->UnprotectedCount = 0;
+            return;
+        }
+
+        Pi->Unprotected = NewRegion;
+        Pi->Unprotected[Pi->UnprotectedCount] = Pi->Regions[I];
+        Pi->UnprotectedCount++;
+    }
+
 }
 
 void ReadProcessMemory(
@@ -312,42 +418,6 @@ void ResumeProcessThread(thread_act_t Thread) {
     }
 }
 
-void GetProcessArchitecture(task_t Task, cpu_type_t* CpuType) {
-    if (Task == MACH_PORT_NULL) {
-        printf("Error: Invalid task\n");
-        exit(EXIT_FAILURE);
-    }
-
-    task_thread_times_info_data_t TaskInfo;
-    mach_msg_type_number_t TaskInfoCount = TASK_THREAD_TIMES_INFO_COUNT;
-
-    if (task_info(
-            Task, 
-            TASK_THREAD_TIMES_INFO, 
-            (task_info_t)&TaskInfo, 
-            &TaskInfoCount) != KERN_SUCCESS) {
-
-        printf("Error: Could not get task info\n");
-        exit(EXIT_FAILURE);
-    }
-
-    host_t host = mach_host_self();
-    struct host_basic_info HostInfo;
-    mach_msg_type_number_t HostInfoCount = HOST_BASIC_INFO_COUNT;
-
-    if (host_info(
-            host, 
-            HOST_BASIC_INFO, 
-            (host_info_t)&HostInfo, 
-            &HostInfoCount) != KERN_SUCCESS) {
-
-        printf("Error: Could not get host info\n");
-        exit(EXIT_FAILURE);
-    }
-
-    *CpuType = HostInfo.cpu_type;
-}
-
 void GetThreadState64(thread_act_t Thread, arm_thread_state64_t *State) {
     if (Thread == MACH_PORT_NULL) {
         printf("Error: Invalid thread\n");
@@ -406,6 +476,75 @@ void SetThreadState(
             StateCount) != KERN_SUCCESS) {
 
         printf("Error: Could not set thread state\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void GetMemoryProtection64(task_t Task, mach_vm_address_t Address, vm_prot_t* Protection) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    MemoryRegion64 BaseRegion;
+    BaseRegion.Address = Address;
+    BaseRegion.Size = 0;
+    BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
+
+    kern_return_t Kr = mach_vm_region( 
+        Task, 
+        &BaseRegion.Address, 
+        &BaseRegion.Size, 
+        VM_REGION_BASIC_INFO_64, 
+        (vm_region_info_t)&BaseRegion.Rbi, 
+        &BaseRegion.InfoCount, 
+        &BaseRegion.ObjectName);
+
+    if (Kr != KERN_SUCCESS) {
+        printf("Error: Could not get memory region\n");
+        exit(EXIT_FAILURE);
+    }
+
+    *Protection = BaseRegion.Rbi.protection;
+}
+
+void GetMemoryProtection32(task_t Task, mach_vm_address_t Address, vm_prot_t* Protection) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    MemoryRegion32 BaseRegion;
+    BaseRegion.Address = Address;
+    BaseRegion.Size = 0;
+    BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT;
+
+    kern_return_t Kr = mach_vm_region( 
+        Task, 
+        &BaseRegion.Address, 
+        &BaseRegion.Size, 
+        VM_REGION_BASIC_INFO, 
+        (vm_region_info_t)&BaseRegion.Rbi, 
+        &BaseRegion.InfoCount, 
+        &BaseRegion.ObjectName);
+
+    if (Kr != KERN_SUCCESS) {
+        printf("Error: Could not get memory region\n");
+        exit(EXIT_FAILURE);
+    }
+
+    *Protection = BaseRegion.Rbi.protection;
+}
+
+void SetMemoryProtection(task_t Task, mach_vm_address_t Address, size_t Size, vm_prot_t Protection) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    kern_return_t Kr = mach_vm_protect(Task, Address, Size, 0, Protection);
+    if (Kr != KERN_SUCCESS) {
+        printf("Error: Could not set memory protection. Error code: %d\n", Kr);
         exit(EXIT_FAILURE);
     }
 }

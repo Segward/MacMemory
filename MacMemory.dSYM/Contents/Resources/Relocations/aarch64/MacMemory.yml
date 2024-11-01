@@ -1,0 +1,27 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     MacMemory
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _safe_malloc, symObjAddr: 0x0, symBinAddr: 0x100002700, symSize: 0x6C }
+  - { offsetInCU: 0x9E3, offset: 0x9E3, size: 0x8, addend: 0x0, symName: _safe_malloc, symObjAddr: 0x0, symBinAddr: 0x100002700, symSize: 0x6C }
+  - { offsetInCU: 0xA19, offset: 0xA19, size: 0x8, addend: 0x0, symName: _safe_realloc, symObjAddr: 0x6C, symBinAddr: 0x10000276C, symSize: 0x74 }
+  - { offsetInCU: 0xA5D, offset: 0xA5D, size: 0x8, addend: 0x0, symName: _FreeProcessInformation64, symObjAddr: 0xE0, symBinAddr: 0x1000027E0, symSize: 0x54 }
+  - { offsetInCU: 0xA81, offset: 0xA81, size: 0x8, addend: 0x0, symName: _GetPidByName, symObjAddr: 0x134, symBinAddr: 0x100002834, symSize: 0x1E8 }
+  - { offsetInCU: 0xB23, offset: 0xB23, size: 0x8, addend: 0x0, symName: _GetTaskForPid, symObjAddr: 0x31C, symBinAddr: 0x100002A1C, symSize: 0x88 }
+  - { offsetInCU: 0xB55, offset: 0xB55, size: 0x8, addend: 0x0, symName: _GetProcessInformation64, symObjAddr: 0x3A4, symBinAddr: 0x100002AA4, symSize: 0x338 }
+  - { offsetInCU: 0xBFA, offset: 0xBFA, size: 0x8, addend: 0x0, symName: _GetProcessInformation32, symObjAddr: 0x6DC, symBinAddr: 0x100002DDC, symSize: 0x350 }
+  - { offsetInCU: 0xCA1, offset: 0xCA1, size: 0x8, addend: 0x0, symName: _ReadProcessMemory, symObjAddr: 0xA2C, symBinAddr: 0x10000312C, symSize: 0x8C }
+  - { offsetInCU: 0xCF4, offset: 0xCF4, size: 0x8, addend: 0x0, symName: _WriteProcessMemory, symObjAddr: 0xAB8, symBinAddr: 0x1000031B8, symSize: 0x8C }
+  - { offsetInCU: 0xD47, offset: 0xD47, size: 0x8, addend: 0x0, symName: _AllocateRemoteMemory, symObjAddr: 0xB44, symBinAddr: 0x100003244, symSize: 0x84 }
+  - { offsetInCU: 0xD8B, offset: 0xD8B, size: 0x8, addend: 0x0, symName: _DelallocateRemoteMemory, symObjAddr: 0xBC8, symBinAddr: 0x1000032C8, symSize: 0x80 }
+  - { offsetInCU: 0xDCF, offset: 0xDCF, size: 0x8, addend: 0x0, symName: _GetProcessThreads, symObjAddr: 0xC48, symBinAddr: 0x100003348, symSize: 0x80 }
+  - { offsetInCU: 0xE13, offset: 0xE13, size: 0x8, addend: 0x0, symName: _SuspendProcessThread, symObjAddr: 0xCC8, symBinAddr: 0x1000033C8, symSize: 0x70 }
+  - { offsetInCU: 0xE39, offset: 0xE39, size: 0x8, addend: 0x0, symName: _ResumeProcessThread, symObjAddr: 0xD38, symBinAddr: 0x100003438, symSize: 0x70 }
+  - { offsetInCU: 0xE5F, offset: 0xE5F, size: 0x8, addend: 0x0, symName: _GetThreadState64, symObjAddr: 0xDA8, symBinAddr: 0x1000034A8, symSize: 0xA0 }
+  - { offsetInCU: 0xEB2, offset: 0xEB2, size: 0x8, addend: 0x0, symName: _GetThreadState32, symObjAddr: 0xE48, symBinAddr: 0x100003548, symSize: 0xA0 }
+  - { offsetInCU: 0xF05, offset: 0xF05, size: 0x8, addend: 0x0, symName: _SetThreadState, symObjAddr: 0xEE8, symBinAddr: 0x1000035E8, symSize: 0x88 }
+  - { offsetInCU: 0xF58, offset: 0xF58, size: 0x8, addend: 0x0, symName: _GetMemoryProtection64, symObjAddr: 0xF70, symBinAddr: 0x100003670, symSize: 0xB4 }
+  - { offsetInCU: 0xFBA, offset: 0xFBA, size: 0x8, addend: 0x0, symName: _GetMemoryProtection32, symObjAddr: 0x1024, symBinAddr: 0x100003724, symSize: 0xB8 }
+  - { offsetInCU: 0x101C, offset: 0x101C, size: 0x8, addend: 0x0, symName: _SetMemoryProtection, symObjAddr: 0x10DC, symBinAddr: 0x1000037DC, symSize: 0xA4 }
+  - { offsetInCU: 0x107E, offset: 0x107E, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x1180, symBinAddr: 0x100003880, symSize: 0x2D8 }
+...
