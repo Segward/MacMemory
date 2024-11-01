@@ -3,7 +3,7 @@
 
 int main() {
     pid_t Pid;
-    GetPidByName("RobloxPlayer", &Pid);
+    GetPidByName("Calculator", &Pid);
 
     task_t Task;
     GetTaskForPid(Pid, &Task);
@@ -17,7 +17,7 @@ int main() {
 
     printf("Thread count: %d\n", ThreadCount);
 
-    thread_act_t Thread = Threads[1];
+    thread_act_t Thread = Threads[3];
 
     SuspendProcessThread(Thread);
 
