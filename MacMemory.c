@@ -54,128 +54,33 @@ int main() {
 
     printf("New protection: %d\n", NewProtection);
 
-    printf("__pc: 0x%llx\n", State.__pc);
+    printf("__pc original: 0x%llx\n", State.__pc);
     State.__pc = Address;
 
     SetThreadState(Thread, ARM_THREAD_STATE64, (thread_act_t* )&State, ARM_THREAD_STATE64_COUNT);
 
     GetThreadState64(Thread, &State);
 
-    printf("__pc: 0x%llx\n", State.__pc);
+    printf("__pc changed to: 0x%llx\n", State.__pc);
+
+    ResumeProcessThread(Thread);
+
+    uint64_t PreviousPc = State.__pc;
     
-    ResumeProcessThread(Thread);
-    
-    FreeProcessInformation64(&Pi);
+    while (true) {
+        usleep(1000); 
 
-    usleep(100000); 
+        SuspendProcessThread(Thread);
 
-    SuspendProcessThread(Thread);
+        GetThreadState64(Thread, &State);
 
-    GetThreadState64(Thread, &State);
+        if (PreviousPc != State.__pc) 
+            printf("__pc changed to: 0x%llx\n", State.__pc);
 
-    printf("__pc: 0x%llx\n", State.__pc);
+        PreviousPc = State.__pc;
 
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
-
-    usleep(100000); 
-
-    SuspendProcessThread(Thread);
-
-    GetThreadState64(Thread, &State);
-
-    printf("__pc: 0x%llx\n", State.__pc);
-
-    ResumeProcessThread(Thread);
+        ResumeProcessThread(Thread);
+    }
 
     return 0;
 }
