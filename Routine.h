@@ -39,33 +39,45 @@ typedef struct {
     vm_region_basic_info_data_64_t Rbi;                                 // basic information about memory region
     mach_msg_type_number_t InfoCount;                                   // number of information
     mach_port_t ObjectName;                                             // object name
-} MemoryRegion64;
+} MemoryRegion;
 
 typedef struct {
-    MemoryRegion64* Regions;
-    size_t RegionCount;
-    MemoryRegion64* Unprotected;
-    size_t UnprotectedCount;
-    MemoryRegion64 BaseAddress;
-} ProcessInformation64;
+    MemoryRegion* Regions;                                              // memory regions
+    size_t RegionCount;                                                 // number of memory regions
+    MemoryRegion* Unprotected;                                          // unprotected memory regions 
+    size_t UnprotectedCount;                                            // number of unprotected memory regions
+    MemoryRegion BaseAddress;                                           // base address of memory region
+} ProcessInformation;
 
 typedef struct {
-    mach_vm_address_t Address;                                          // start address of memory region
-    mach_vm_size_t Size;                                                // size of memory region
-    vm_region_basic_info_data_t Rbi;                                    // basic information about memory region
-    mach_msg_type_number_t InfoCount;                                   // number of information
-    mach_port_t ObjectName;                                             // object name
-} MemoryRegion32;
+    uint64_t Present : 1;                                               // Page present in memory
+    uint64_t ReadWrite : 1;                                             // Read/write permission
+    uint64_t UserSupervisor : 1;                                        // User/supervisor mode
+    uint64_t PageWriteThrough : 1;                                      // Page-level write-through
+    uint64_t PageCacheDisable : 1;                                      // Page-level cache disable
+    uint64_t Accessed : 1;                                              // Accessed (set by CPU)
+    uint64_t Dirty : 1;                                                 // Dirty (set by CPU)
+    uint64_t PageSize : 1;                                              // Page size (0 = 4KB, 1 = 2MB/4MB)
+    uint64_t Global : 1;                                                // Global page (not flushed by CR3)
+    uint64_t Available : 3;                                             // Available for system programmer use
+    uint64_t PageFrameNumber : 40;                                      // Page frame number (physical address)
+    uint64_t Reserved : 11;                                             // Reserved bits
+    uint64_t NoExecute : 1;                                             // No-execute bit
+} PageTableEntry;
 
 typedef struct {
-    MemoryRegion32* Regions;
-    size_t RegionCount;
-    MemoryRegion32* Unprotected;
-    size_t UnprotectedCount;
-    MemoryRegion32 BaseAddress;
-} ProcessInformatio32;
+    mach_vm_address_t Address;                                          // start address of page
+    mach_vm_size_t Size;                                                // size of page
+    mach_msg_type_number_t DataCount;                                   // number of data or entries
+    vm_offset_t Data;                                                   // data
+} RegionPage;
 
-void FreeProcessInformation64(ProcessInformation64* Pi) {
+typedef struct {
+    RegionPage* Pages;                                                  // pages
+    size_t PageCount;                                                   // number of pages
+} MemoryPages;
+
+void FreeProcessInformation(ProcessInformation* Pi) {
     free(Pi->Regions);
     Pi->Regions = NULL;
     Pi->RegionCount = 0;
@@ -117,7 +129,7 @@ void GetTaskForPid(pid_t Pid, task_t* Task) {
     }
 }
 
-void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
+void GetProcessInformation(task_t Task, ProcessInformation* Pi) {
     if (Task == MACH_PORT_NULL) {
         printf("Error: Invalid task\n");
         exit(EXIT_FAILURE);
@@ -126,7 +138,7 @@ void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
     Pi->RegionCount = 0;
     Pi->Regions = NULL;
     
-    MemoryRegion64 BaseRegion;
+    MemoryRegion BaseRegion;
     BaseRegion.Address = 0;
     BaseRegion.Size = 0;
     BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
@@ -145,9 +157,9 @@ void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
             break;
         }
 
-        MemoryRegion64* NewRegion = (MemoryRegion64*)safe_realloc(
+        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(
             Pi->Regions,
-            (Pi->RegionCount + 1) * sizeof(MemoryRegion64));
+            (Pi->RegionCount + 1) * sizeof(MemoryRegion));
 
         if (NewRegion == NULL) {
             printf("Error: realloc failed\n");
@@ -158,7 +170,7 @@ void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
         }
 
         Pi->Regions = NewRegion;
-        Pi->Regions[Pi->RegionCount] = (MemoryRegion64) { 
+        Pi->Regions[Pi->RegionCount] = (MemoryRegion) { 
             BaseRegion.Address, 
             BaseRegion.Size, 
             BaseRegion.Rbi, 
@@ -188,9 +200,9 @@ void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
             continue;
         }
 
-        MemoryRegion64* NewRegion = (MemoryRegion64*)safe_realloc(
+        MemoryRegion* NewRegion = (MemoryRegion*)safe_realloc(
             Pi->Unprotected,
-            (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion64));
+            (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion));
 
         if (NewRegion == NULL) {
             printf("Error: realloc failed\n");
@@ -204,96 +216,6 @@ void GetProcessInformation64(task_t Task, ProcessInformation64* Pi) {
         Pi->Unprotected[Pi->UnprotectedCount] = Pi->Regions[I];
         Pi->UnprotectedCount++;
     }
-}
-
-void GetProcessInformation32(task_t Task, ProcessInformatio32* Pi) {
-    if (Task == MACH_PORT_NULL) {
-        printf("Error: Invalid task\n");
-        exit(EXIT_FAILURE);
-    }
-
-    Pi->RegionCount = 0;
-    Pi->Regions = NULL;
-    
-    MemoryRegion32 BaseRegion;
-    BaseRegion.Address = 0;
-    BaseRegion.Size = 0;
-    BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT;
-
-    while (true) {
-        kern_return_t Kr = mach_vm_region( 
-            Task, 
-            &BaseRegion.Address, 
-            &BaseRegion.Size, 
-            VM_REGION_BASIC_INFO, 
-            (vm_region_info_t)&BaseRegion.Rbi, 
-            &BaseRegion.InfoCount, 
-            &BaseRegion.ObjectName);
-
-        if (Kr != KERN_SUCCESS) {
-            break;
-        }
-
-        MemoryRegion32* NewRegion = (MemoryRegion32*)safe_realloc(
-            Pi->Regions,
-            (Pi->RegionCount + 1) * sizeof(MemoryRegion32));
-
-        if (NewRegion == NULL) {
-            printf("Error: realloc failed\n");
-            free(Pi->Regions);
-            Pi->Regions = NULL;
-            Pi->RegionCount = 0;
-            return;
-        }
-
-        Pi->Regions = NewRegion;
-        Pi->Regions[Pi->RegionCount] = (MemoryRegion32) { 
-            BaseRegion.Address, 
-            BaseRegion.Size, 
-            BaseRegion.Rbi, 
-            BaseRegion.InfoCount, 
-            BaseRegion.ObjectName 
-        };
-
-        Pi->RegionCount++;
-        BaseRegion.Address += BaseRegion.Size;
-    }
-
-    if (Pi->RegionCount == 0) {
-        printf("Error: Could not get memory regions\n");
-        free(Pi->Regions);
-        Pi->Regions = NULL;
-        Pi->RegionCount = 0;
-        exit(EXIT_FAILURE);
-    }
-
-    Pi->BaseAddress = Pi->Regions[0];
-    Pi->UnprotectedCount = 0;
-    Pi->Unprotected = NULL;
-
-    for (size_t I = 0; I < Pi->RegionCount; ++I) {
-        if (!(Pi->Regions[I].Rbi.protection & VM_PROT_READ) 
-            && !(Pi->Regions[I].Rbi.protection & VM_PROT_WRITE)) {
-            continue;
-        }
-
-        MemoryRegion32* NewRegion = (MemoryRegion32*)safe_realloc(
-            Pi->Unprotected,
-            (Pi->UnprotectedCount + 1) * sizeof(MemoryRegion32));
-
-        if (NewRegion == NULL) {
-            printf("Error: realloc failed\n");
-            free(Pi->Unprotected);
-            Pi->Unprotected = NULL;
-            Pi->UnprotectedCount = 0;
-            return;
-        }
-
-        Pi->Unprotected = NewRegion;
-        Pi->Unprotected[Pi->UnprotectedCount] = Pi->Regions[I];
-        Pi->UnprotectedCount++;
-    }
-
 }
 
 void ReadProcessMemory(
@@ -418,7 +340,7 @@ void ResumeProcessThread(thread_act_t Thread) {
     }
 }
 
-void GetThreadState64(thread_act_t Thread, arm_thread_state64_t *State) {
+void GetThreadState(thread_act_t Thread, arm_thread_state64_t *State) {
     if (Thread == MACH_PORT_NULL) {
         printf("Error: Invalid thread\n");
         exit(EXIT_FAILURE);
@@ -429,26 +351,6 @@ void GetThreadState64(thread_act_t Thread, arm_thread_state64_t *State) {
     kern_return_t kr = thread_get_state(
         Thread, 
         ARM_THREAD_STATE64, 
-        (thread_state_t)State, 
-        &StateCount);
-
-    if (kr != KERN_SUCCESS) {
-        printf("Error: Could not get thread state. Error code: %d\n", kr);
-        exit(EXIT_FAILURE);
-    }
-}
-
-void GetThreadState32(thread_act_t Thread, arm_thread_state_t *State) {
-    if (Thread == MACH_PORT_NULL) {
-        printf("Error: Invalid thread\n");
-        exit(EXIT_FAILURE);
-    }
-
-    mach_msg_type_number_t StateCount = ARM_THREAD_STATE32_COUNT;
-
-    kern_return_t kr = thread_get_state(
-        Thread, 
-        ARM_THREAD_STATE, 
         (thread_state_t)State, 
         &StateCount);
 
@@ -480,7 +382,7 @@ void SetThreadState(
     }
 }
 
-void GetMemoryProtection64(
+void GetMemoryProtection(
         task_t Task, 
         mach_vm_address_t Address, 
         vm_prot_t* Protection) {
@@ -490,7 +392,7 @@ void GetMemoryProtection64(
         exit(EXIT_FAILURE);
     }
 
-    MemoryRegion64 BaseRegion;
+    MemoryRegion BaseRegion;
     BaseRegion.Address = Address;
     BaseRegion.Size = 0;
     BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT_64;
@@ -500,38 +402,6 @@ void GetMemoryProtection64(
         &BaseRegion.Address, 
         &BaseRegion.Size, 
         VM_REGION_BASIC_INFO_64, 
-        (vm_region_info_t)&BaseRegion.Rbi, 
-        &BaseRegion.InfoCount, 
-        &BaseRegion.ObjectName);
-
-    if (Kr != KERN_SUCCESS) {
-        printf("Error: Could not get memory region\n");
-        exit(EXIT_FAILURE);
-    }
-
-    *Protection = BaseRegion.Rbi.protection;
-}
-
-void GetMemoryProtection32(
-        task_t Task, 
-        mach_vm_address_t Address, 
-        vm_prot_t* Protection) {
-
-    if (Task == MACH_PORT_NULL) {
-        printf("Error: Invalid task\n");
-        exit(EXIT_FAILURE);
-    }
-
-    MemoryRegion32 BaseRegion;
-    BaseRegion.Address = Address;
-    BaseRegion.Size = 0;
-    BaseRegion.InfoCount = VM_REGION_BASIC_INFO_COUNT;
-
-    kern_return_t Kr = mach_vm_region( 
-        Task, 
-        &BaseRegion.Address, 
-        &BaseRegion.Size, 
-        VM_REGION_BASIC_INFO, 
         (vm_region_info_t)&BaseRegion.Rbi, 
         &BaseRegion.InfoCount, 
         &BaseRegion.ObjectName);
@@ -559,5 +429,96 @@ void SetMemoryProtection(
     if (Kr != KERN_SUCCESS) {
         printf("Error: Could not set memory protection. Error code: %d\n", Kr);
         exit(EXIT_FAILURE);
+    }
+}
+
+void GetMemoryPages(task_t Task, ProcessInformation* Pi, MemoryPages* Pages) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Pages->Pages = NULL;
+    Pages->PageCount = 0;
+
+    for (size_t I = 0; I < Pi->RegionCount; ++I) {
+        MemoryRegion* Region = &Pi->Regions[I];
+
+        RegionPage BasePage;
+        BasePage.Address = Region->Address;
+        BasePage.Size = vm_page_size;
+
+        while (BasePage.Address < Region->Address + Region->Size) {
+            
+            mach_vm_size_t DataSize = BasePage.Size;
+            kern_return_t Kr = mach_vm_read(Task, BasePage.Address, BasePage.Size, &BasePage.Data, &BasePage.DataCount);
+
+            if (Kr != KERN_SUCCESS) {
+                printf("Error: Could not read memory. Error code: %d\n", Kr);
+                BasePage.Address += BasePage.Size;
+                break;
+            }
+
+            RegionPage* NewPage = (RegionPage*)safe_realloc(
+                Pages->Pages,
+                (Pages->PageCount + 1) * sizeof(RegionPage));
+
+            if (NewPage == NULL) {
+                printf("Error: realloc failed\n");
+                free(Pages->Pages);
+                Pages->Pages = NULL;
+                Pages->PageCount = 0;
+                return;
+            }
+
+            Pages->Pages = NewPage;
+            Pages->Pages[Pages->PageCount] = (RegionPage) { 
+                BasePage.Address, 
+                BasePage.Size, 
+                BasePage.DataCount,
+                BasePage.Data
+            };
+
+            Pages->PageCount++;
+            BasePage.Address += BasePage.Size;
+        }
+    }
+} 
+
+void EnumeratePageTableEntries(task_t Task, MemoryPages* Pages) {
+    if (Task == MACH_PORT_NULL) {
+        printf("Error: Invalid task\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t I = 0; I < Pages->PageCount; ++I) {
+
+        RegionPage* Page = &Pages->Pages[I];
+
+        for (size_t J = 0; J < Page->DataCount; ++J) {
+
+            PageTableEntry* Entry = (PageTableEntry*)(Page->Data + J * sizeof(PageTableEntry));
+
+            if (!Entry->ReadWrite) {
+                continue;
+            }
+
+            printf("Page: %zu\n Entry: %zu\n Present: %d\n ReadWrite: %d\n UserSupervisor: %d\n PageWriteThrough: %d\n PageCacheDisable: %d\n Accessed: %d\n Dirty: %d\n PageSize: %d\n Global: %d\n Available: %d\n PageFrameNumber: 0x%llx\n Reserved: %d\n NoExecute: %d\n\n", 
+                I, 
+                J, 
+                Entry->Present, 
+                Entry->ReadWrite, 
+                Entry->UserSupervisor, 
+                Entry->PageWriteThrough, 
+                Entry->PageCacheDisable, 
+                Entry->Accessed, 
+                Entry->Dirty, 
+                Entry->PageSize, 
+                Entry->Global, 
+                Entry->Available, 
+                Entry->PageFrameNumber, 
+                Entry->Reserved, 
+                Entry->NoExecute);
+        }
     }
 }
