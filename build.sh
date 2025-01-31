@@ -1,1 +1,0 @@
-gcc -std=c11 -o "./build/MacMemory" "MacMemory.c" -framework CoreFoundation

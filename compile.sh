@@ -1,0 +1,1 @@
+gcc -std=c11 -o "./bin/macmemory" "./src/macmemory.c" -framework CoreFoundation

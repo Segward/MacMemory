@@ -4,9 +4,7 @@ This is a simple test program for external memory manipulation on MacOS.
 
 # Usage
 
-I made a build shell script that compiles the project into the build folder. <br/>
-To give permission to the shell script use `chmod +x build.sh` and to build use `./build.sh`
-
+I made a compile shell script `./compile.sh` and a run shell script `./run.sh`. 
 # Note
 
 You need to disable System Integrity Protection (SIP) to get this working. 
