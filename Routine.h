@@ -86,6 +86,33 @@ void FreeProcessInformation(ProcessInformation* Pi) {
     Pi->UnprotectedCount = 0;
 }
 
+void EnumeratePids() {
+    int Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };             // sysctl parameters for getting process information
+    size_t Miblen = 4;                                                  // number of parameters
+    size_t Size;
+
+    if (sysctl(Mib, Miblen, NULL, &Size, NULL, 0) == -1) {              // get size of buffer required to store process information
+        printf("Error: Could not get size of buffer\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    unsigned char* Buffer = (unsigned char*)malloc(Size);               // allocate buffer to store process information
+    if (sysctl(Mib, Miblen, Buffer, &Size, NULL, 0) == -1) {            // get process information
+        printf("Error: Could not allocate buffer\n");
+        free(Buffer);
+        exit(EXIT_FAILURE);
+    }
+
+    struct kinfo_proc* Kprocs = (struct kinfo_proc*)Buffer;             // cast buffer to process information
+    int ProcessCount = Size / sizeof(struct kinfo_proc);
+
+    for (int I = 0; I < ProcessCount; ++I) {
+        printf("pid: %d, name: %s\n", Kprocs[I].kp_proc.p_pid, Kprocs[I].kp_proc.p_comm);
+    }
+
+    free(Buffer);
+}
+
 void GetPidByName(const char* ProcessName, pid_t* Pid) {
     int Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };             // sysctl parameters for getting process information
     size_t Miblen = 4;                                                  // number of parameters

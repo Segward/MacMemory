@@ -5,7 +5,7 @@ This is a simple test program for external memory manipulation on MacOS.
 # Usage
 
 I made a build shell script that compiles the project into the build folder. <br/>
-To give permission to the shell script use `chmod +x run.sh` and to build use `./build.sh`
+To give permission to the shell script use `chmod +x build.sh` and to build use `./build.sh`
 
 # Note
 
